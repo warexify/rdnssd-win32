@@ -1,0 +1,20 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual C++ Express 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rdnssd_win32", "rdnssd_win32\rdnssd_win32.vcproj", "{29F96749-67B3-4517-BAFA-F5A562D54015}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{29F96749-67B3-4517-BAFA-F5A562D54015}.Debug|Win32.ActiveCfg = Debug|Win32
+		{29F96749-67B3-4517-BAFA-F5A562D54015}.Debug|Win32.Build.0 = Debug|Win32
+		{29F96749-67B3-4517-BAFA-F5A562D54015}.Release|Win32.ActiveCfg = Release|Win32
+		{29F96749-67B3-4517-BAFA-F5A562D54015}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
