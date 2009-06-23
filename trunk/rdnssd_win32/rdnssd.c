@@ -30,8 +30,8 @@
 #include <sys/utime.h>
 #include <sys/types.h>
 
+#include <winsock2.h>
 #include <winsvc.h>
-#include <in6addr.h>
 
 /* include this before pcap.h for windows */
 #define HAVE_REMOTE

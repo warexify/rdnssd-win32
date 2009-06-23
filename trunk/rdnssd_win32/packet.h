@@ -25,6 +25,8 @@
 #ifndef PACKET_H
 #define PACKET_H
 
+#include <in6addr.h>
+
 /**
  * \def ND_OPT_RDNSS
  * \brief Option type number for RDNSS option.
