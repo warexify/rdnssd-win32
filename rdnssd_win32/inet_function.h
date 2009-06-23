@@ -41,7 +41,7 @@
 
 #if defined (_WIN32)  || defined(_WIN64)
 #include <winsock2.h>
-#define EAFNOSUPPORT    WSAEAFNOSUPPORT
+#define EAFNOSUPPORT WSAEAFNOSUPPORT
 #else
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -55,3 +55,4 @@ int inet_pton2(int af, const char *src, void *dst);
 const char *inet_ntop2(int af, const void * src, char * dst, size_t cnt);
 
 #endif /* INET_FUNCTION_H */
+

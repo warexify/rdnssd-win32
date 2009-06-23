@@ -30,7 +30,6 @@
 #include <sys/utime.h>
 #include <sys/types.h>
 
-#include "inet_function.h"
 #include <winsvc.h>
 #include <in6addr.h>
 
@@ -41,6 +40,7 @@
 
 #include <pcap.h>
 
+#include "inet_function.h"
 #include "packet.h"
 
 /**
@@ -57,14 +57,14 @@
 
 /**
  * \def KEY_STR
- * \brief Beginning of the registry key.
+ * \brief Beginning of the IPv6 nameservers registry key.
  * You have to add interface name (i.e {xxxx-xxxx-xxx...}).
  */
 #define KEY_STR "SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters\\Interfaces\\"
 
 /**
  * \def MAX_RDNSS
- * \brief Max number of RDNSS option.
+ * \brief Maximum number of RDNSS option.
  */
 #define MAX_RDNSS 16
 
@@ -75,9 +75,9 @@
 typedef struct rdnss_t
 {
     struct in6_addr addr; /**< IPv6 address of the server */
-    unsigned int    ifindex; /**< interface index */
-    time_t          expiry; /**< expire time */
-} rdnss_t;
+    unsigned int ifindex; /**< Interface index */
+    time_t expiry; /**< Expire time */
+}rdnss_t;
 
 /**
  * \struct rdnss_servers
@@ -85,9 +85,29 @@ typedef struct rdnss_t
  */
 typedef struct rdnss_servers
 {
-    size_t  count; /**< Number of servers */
+    size_t count; /**< Number of servers */
     rdnss_t list[MAX_RDNSS]; /**< Array of server information */
 }rdnss_servers;
+
+/**
+ * \enum clockid_t
+ * \brief Different type of clock (used with clock_* function).
+ */
+typedef enum clockid_t
+{
+    CLOCK_REALTIME, /**< The realtime clock */
+    CLOCK_MONOTONIC /**< The monotonic clock */
+}clockid_t;
+
+/**
+ * \struct timespec
+ * \brief The timespec structure for Windows.
+ */
+struct timespec
+{
+    time_t tv_sec; /**< Seconds */
+    long tv_nsec; /**< Nanoseconds */
+};
 
 /**
  * \var now
@@ -106,7 +126,7 @@ static char ifname[MAX_PATH];
  * \brief the interface sniffer.
  * Must be global if we want to cleanup when pcap_breakloop.
  */
-static pcap_t* sock=NULL;
+static pcap_t* sock = NULL;
 
 /**
  * \var service_status
@@ -120,7 +140,7 @@ static SERVICE_STATUS service_status;
  * \brief Service handle.
  * Windows service related variable
  */
-static SERVICE_STATUS_HANDLE status=NULL;
+static SERVICE_STATUS_HANDLE status = NULL;
 
 /**
  * \var servers
@@ -128,45 +148,23 @@ static SERVICE_STATUS_HANDLE status=NULL;
  */
 static struct rdnss_servers servers;
 
-/* windows specific code */
-
-/**
- * \enum clockid_t
- * \brief Different type of clock (used with clock_* function).
- */
-typedef enum clockid_t
-{
-    CLOCK_REALTIME, /**< The realtime clock */
-    CLOCK_MONOTONIC /**< The monotonic clock */
-}clockid_t;
-
-/**
- * \struct timespec
- * \brief The timespec structure for Windows.
- */
-struct timespec
-{
-    time_t   tv_sec;        /**< seconds */
-    long     tv_nsec;       /**< nanoseconds */
-};
-
 /**
  * \brief An implementation of gettimeofday for Windows.
  * \param p the time will be filled in
  * \param tz timezone (it is ignored).
  * \return 0
  */
-inline int gettimeofday(struct timeval* p, void* tz /* IGNORED */)
+static inline int gettimeofday(struct timeval* p, void* tz /* IGNORED */)
 {
     union
     {
-        long long ns100; /*time since 1 Jan 1601 in 100ns units */
+        long long ns100; /* time since 1 Jan 1601 in 100ns units */
         FILETIME ft;
     } now;
 
-    GetSystemTimeAsFileTime( &(now.ft) );
-    p->tv_usec=(long)((now.ns100 / 10LL) % 1000000LL );
-    p->tv_sec= (long)((now.ns100-(116444736000000000LL))/10000000LL);
+    GetSystemTimeAsFileTime(&(now.ft));
+    p->tv_usec = (long)((now.ns100 / 10LL) % 1000000LL);
+    p->tv_sec = (long)((now.ns100 - (116444736000000000LL)) / 10000000LL);
     return 0;
 }
 
@@ -181,114 +179,115 @@ static int clock_gettime(clockid_t clk_id, struct timespec *tp)
 {
     struct timeval tv;
 
-    if (gettimeofday(&tv, NULL)==-1)
+    if(gettimeofday(&tv, NULL)==-1)
     {
         return -1;
     }
 
-    tp->tv_sec=tv.tv_sec;
-    tp->tv_nsec=tv.tv_usec * 1000; /* convert microsecond to nanosecond */
+    tp->tv_sec = tv.tv_sec;
+    tp->tv_nsec = tv.tv_usec * 1000; /* convert microsecond to nanosecond */
     return 0;
 }
 
 /**
  * \brief Write name servers to the registry.
  */
-void rdnssd_write_registry(void)
+static void rdnssd_write_registry(void)
 {
     HKEY key;
-    char registry_key[sizeof(KEY_STR)+64];
+    char registry_key[sizeof(KEY_STR) + 64];
     unsigned char old[1024];
     unsigned char str[INET6_ADDRSTRLEN];
     unsigned char buf[1024];
-    unsigned char* buf2=NULL;
-    DWORD bufsize=0;
-    struct rdnss_t* rd=NULL;
-    size_t i=0;
+    unsigned char* buf2 = NULL;
+    DWORD bufsize = 0;
+    struct rdnss_t* rd = NULL;
+    size_t i = 0;
 
-    if (!servers.count)
+    if(!servers.count)
     {
         return;
     }
 
     /* forge the key entry */
     memset(registry_key, 0x00, sizeof(registry_key));
-    strncpy(registry_key, KEY_STR, sizeof(KEY_STR)+1);
-    strcat(registry_key, ifname /*"{792556BE-97C6-4AE0-8456-7C6566000B1D}"*/ );
-    registry_key[sizeof(registry_key)-1]=0x00;
+    strncpy(registry_key, KEY_STR, sizeof(KEY_STR) + 1);
+    strcat(registry_key, ifname /*"{792556BE-97C6-4AE0-8456-7C6566000B1D}"*/);
+    registry_key[sizeof(registry_key) - 1] = 0x00;
 
     /* open the specified entry */
-    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, registry_key, 0, KEY_READ|KEY_WRITE, &key)!=ERROR_SUCCESS)
+    if(RegOpenKeyExA(HKEY_LOCAL_MACHINE, registry_key, 0, KEY_READ | KEY_WRITE, &key) != ERROR_SUCCESS)
     {
         /* create the key entry if not exists */
-        if (RegCreateKeyExA(HKEY_LOCAL_MACHINE, registry_key, 0, NULL, REG_OPTION_NON_VOLATILE,KEY_WRITE | KEY_READ, NULL, &key, &bufsize))
+        if(RegCreateKeyExA(HKEY_LOCAL_MACHINE, registry_key, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE | KEY_READ, NULL, &key, &bufsize))
         {
-            printf("Error RegCreateKeyExA : cannot create key\n");
+            printf("Error RegCreateKeyExA: cannot create key\n");
             return;
         }
     }
 
-    bufsize=sizeof(buf);
+    bufsize = sizeof(buf);
     RegQueryValueExA(key, "NameServer", NULL, NULL, buf, &bufsize);
 
     /* in case it failed, buf is zeroed string */
     printf("Old value is %s\n", buf);
     memcpy(old, buf, sizeof(buf));
 
-    buf2=buf;
-    bufsize=sizeof(buf);
+    buf2 = buf;
+    bufsize = sizeof(buf);
 
-    for (i=0;i<servers.count;i++)
+    for(i = 0 ; i < servers.count ; i++)
     {
-        rd=&servers.list[i];
+        rd = &servers.list[i];
 
         inet_ntop2(AF_INET6, &rd->addr, str, INET6_ADDRSTRLEN);
 
-        if ((strlen(str)+1)>(bufsize))
+        if((strlen(str) + 1) > (bufsize))
         {
             break;
         }
 
-        bufsize-=(int)strlen(str);
+        bufsize -= (int)strlen(str);
         strncpy(buf2, str, strlen(str));
-        buf2+=(int)strlen(str);
-        if (bufsize>1)
+        buf2 += (int)strlen(str);
+        if(bufsize > 1)
         {
-            *buf2=' ';
+            *buf2 = ' ';
             buf2++;
             bufsize--;
-            *buf2=0x00;
+            *buf2 = 0x00;
         }
     }
-    buf[sizeof(buf)-bufsize]=0x00;
+    
+    buf[sizeof(buf) - bufsize] = 0x00;
     printf("New value is %s\n", buf);
-    bufsize=(int)strlen(buf);
+    bufsize = (int)strlen(buf);
 
-    if (!strcmp(buf, old))
+    if(!strcmp(buf, old))
     {
         printf("Same value, don't update\n");
-        RegCloseKey (key);
+        RegCloseKey(key);
         return;
     }
 
     /* write the value */
-    if (RegSetValueExA(key, "NameServer", 0, REG_SZ, buf, bufsize)!=ERROR_SUCCESS)
+    if(RegSetValueExA(key, "NameServer", 0, REG_SZ, buf, bufsize) != ERROR_SUCCESS)
     {
-        RegCloseKey (key);
+        RegCloseKey(key);
         return;
     }
     printf("DNS server(s) written in the registry\n");
     /* close the registry */
-    RegCloseKey (key);
+    RegCloseKey(key);
 }
 
 /**
  * \brief Remote a entry in the table if lifetime is expired.
  * \author Pierre Ynard
  */
-void rdnssd_trim_expired (void)
+static void rdnssd_trim_expired(void)
 {
-    while (servers.count > 0
+    while(servers.count > 0
             && servers.list[servers.count - 1].expiry <= now)
         servers.count--;
 }
@@ -300,14 +299,14 @@ void rdnssd_trim_expired (void)
  * \return 0 if equal, 1 if "a" is lower than "b", -1 if "a" is greater than than "b"
  * \author Pierre Ynard
  */
-static int rdnssd_is_older (const void *a, const void *b)
+static int rdnssd_is_older(const void *a, const void *b)
 {
-    time_t ta = ((const rdnss_t *)a)->expiry;
-    time_t tb = ((const rdnss_t *)b)->expiry;
+    time_t ta = ((const rdnss_t*)a)->expiry;
+    time_t tb = ((const rdnss_t*)b)->expiry;
 
-    if (ta < tb)
+    if(ta < tb)
         return 1;
-    if (ta > tb)
+    if(ta > tb)
         return -1;
     return 0;
 }
@@ -321,46 +320,46 @@ static int rdnssd_is_older (const void *a, const void *b)
  */
 static void rdnssd_update(struct in6_addr* addr, unsigned int ifindex, time_t expiry)
 {
-    size_t i=0;
+    size_t i = 0;
 
     /* Does this entry already exist? */
-    for (i = 0; i < servers.count; i++)
+    for(i = 0 ; i < servers.count ; i++)
     {
-        if (memcmp (addr, &servers.list[i].addr, sizeof (*addr)) == 0
-                && (! IN6_IS_ADDR_LINKLOCAL(addr)
+        if(memcmp(addr, &servers.list[i].addr, sizeof(*addr)) == 0
+                && (!IN6_IS_ADDR_LINKLOCAL(addr)
                     || ifindex == servers.list[i].ifindex))
             break;
     }
 
     /* Add a new entry */
-    if (i == servers.count)
+    if(i == servers.count)
     {
-        if (expiry == now)
+        if(expiry == now)
             return; /* Do not add already expired entry! */
 
-        if (servers.count < MAX_RDNSS)
+        if(servers.count < MAX_RDNSS)
             i = servers.count++;
         else
         {
             /* No more room? replace the most obsolete entry */
-            if ((expiry - servers.list[MAX_RDNSS - 1].expiry) >= 0)
+            if((expiry - servers.list[MAX_RDNSS - 1].expiry) >= 0)
                 i = MAX_RDNSS - 1;
         }
     }
 
-    memcpy (&servers.list[i].addr, addr, sizeof (*addr));
+    memcpy(&servers.list[i].addr, addr, sizeof(*addr));
     servers.list[i].ifindex = ifindex;
     servers.list[i].expiry = expiry;
 
-    qsort (servers.list, servers.count, sizeof (rdnss_t), rdnssd_is_older);
+    qsort(servers.list, servers.count, sizeof(rdnss_t), rdnssd_is_older);
     /*
     #ifndef NDEBUG
-    	for (unsigned i = 0; i < servers.count; i++)
+    	for(unsigned i = 0; i < servers.count; i++)
     	{
     		char buf[INET6_ADDRSTRLEN];
-    		inet_ntop (AF_INET6, &servers.list[i].addr, buf,
-    		           sizeof (buf));
-    		syslog (LOG_DEBUG, "%u: %48s expires at %u\n", i, buf,
+    		inet_ntop(AF_INET6, &servers.list[i].addr, buf,
+    		           sizeof(buf));
+    		syslog(LOG_DEBUG, "%u: %48s expires at %u\n", i, buf,
     		        (unsigned)servers.list[i].expiry);
     	}
     #endif
@@ -376,28 +375,28 @@ static void rdnssd_update(struct in6_addr* addr, unsigned int ifindex, time_t ex
  * \author Pierre Ynard
  * \author Sebastien Vincent
  */
-int rdnssd_parse_nd_opts (const struct nd_opt_hdr *opt, size_t opts_len, unsigned int ifindex)
+int rdnssd_parse_nd_opts(const struct nd_opt_hdr *opt, size_t opts_len, unsigned int ifindex)
 {
-    struct in6_addr *addr=NULL;
+    struct in6_addr *addr = NULL;
 
-    for (; opts_len >= sizeof(struct nd_opt_hdr);opts_len -= opt->nd_opt_len << 3,
-            opt = (const struct nd_opt_hdr *)((const uint8_t *) opt + (opt->nd_opt_len << 3)))
+    for( ; opts_len >= sizeof(struct nd_opt_hdr) ; opts_len -= opt->nd_opt_len << 3,
+            opt = (const struct nd_opt_hdr*)((const uint8_t*) opt + (opt->nd_opt_len << 3)))
     {
-        struct nd_opt_rdnss *rdnss_opt=NULL;
+        struct nd_opt_rdnss *rdnss_opt = NULL;
         size_t nd_opt_len = opt->nd_opt_len;
-        uint32_t lifetime=0;
+        uint32_t lifetime = 0;
 
-        if (nd_opt_len == 0 || opts_len < (nd_opt_len << 3))
+        if(nd_opt_len == 0 || opts_len < (nd_opt_len << 3))
             return -1;
 
-        if (opt->nd_opt_type != ND_OPT_RDNSS)
+        if(opt->nd_opt_type != ND_OPT_RDNSS)
             continue;
 
-        if (nd_opt_len < 3 /* too short per RFC */
+        if(nd_opt_len < 3 /* too short per RFC */
                 || (nd_opt_len & 1) == 0) /* bad (even) length */
             continue;
 
-        rdnss_opt = (struct nd_opt_rdnss *) opt;
+        rdnss_opt = (struct nd_opt_rdnss*)opt;
 
         printf("rdnss option found!\n");
 
@@ -409,7 +408,7 @@ int rdnssd_parse_nd_opts (const struct nd_opt_hdr *opt, size_t opts_len, unsigne
 
         lifetime = (uint32_t)now + ntohl(rdnss_opt->nd_opt_rdnss_lifetime);
 
-        for (addr = (struct in6_addr *)(rdnss_opt + 1); nd_opt_len >= 2; addr++, nd_opt_len -= 2)
+        for(addr = (struct in6_addr*)(rdnss_opt + 1) ; nd_opt_len >= 2 ; addr++, nd_opt_len -= 2)
         {
             rdnssd_update(addr, ifindex, lifetime);
         }
@@ -425,15 +424,15 @@ int rdnssd_parse_nd_opts (const struct nd_opt_hdr *opt, size_t opts_len, unsigne
  * \param packet the packet
  * \return 0
  */
-int rdnssd_decode_frame(u_char* args, const struct pcap_pkthdr* header, const u_char* packet)
+static int rdnssd_decode_frame(u_char* args, const struct pcap_pkthdr* header, const u_char* packet)
 {
-    struct eth_hdr* hdr=(struct eth_hdr*)packet;
-    struct ipv6_hdr* hdr_ip6=NULL;
-    struct icmpv6_hdr* hdr_icmp6=NULL;
+    struct eth_hdr* hdr = (struct eth_hdr*)packet;
+    struct ipv6_hdr* hdr_ip6 = NULL;
+    struct icmpv6_hdr* hdr_icmp6 = NULL;
 
-		args=NULL;
+    args = NULL; /* not used */
 
-    if (packet_decode_ethernet(packet, header->len)==1)
+    if(packet_decode_ethernet(packet, header->len) == 1)
     {
         /* if returns 1, the packet is a RA */
         rdnssd_trim_expired();
@@ -449,19 +448,18 @@ int rdnssd_decode_frame(u_char* args, const struct pcap_pkthdr* header, const u_
  */
 static void signal_routine(int code)
 {
-    switch (code)
+    switch(code)
     {
     case SIGTERM:
     case SIGINT:
     case SIGABRT:
-        printf("Terminating program\n");
-        if (sock)
+        if(sock)
         {
             pcap_breakloop(sock);
         }
         break;
     case SIGSEGV:
-        printf("Receive SIGSEGV : oups, exiting now\n");
+        printf("Receive SIGSEGV: oups, exiting now\n");
         _exit(EXIT_FAILURE); /* we just exit the program without cleanup */
         break;
     default:
@@ -478,22 +476,22 @@ static void signal_routine(int code)
 static int rdnssd_main(int argc, char** argv)
 {
     /* signals handling */
-    if (signal(SIGTERM, signal_routine) == SIG_ERR)
+    if(signal(SIGTERM, signal_routine) == SIG_ERR)
     {
         printf("SIGTERM not handled\n");
     }
 
-    if (signal(SIGINT, signal_routine) == SIG_ERR)
+    if(signal(SIGINT, signal_routine) == SIG_ERR)
     {
         printf("SIGINT not handled\n");
     }
 
-    if (signal(SIGABRT, signal_routine) == SIG_ERR)
+    if(signal(SIGABRT, signal_routine) == SIG_ERR)
     {
         printf("SIGABRT not handled\n");
     }
 
-    if (signal(SIGSEGV, signal_routine) == SIG_ERR)
+    if(signal(SIGSEGV, signal_routine) == SIG_ERR)
     {
         printf("SIGSEGV not handled\n");
     }
@@ -501,7 +499,7 @@ static int rdnssd_main(int argc, char** argv)
     /* test only
     inet_pton2(AF_INET6, "2001:660:2402::1", (struct sockaddr*)&servers.list[0].addr);
     inet_pton2(AF_INET6, "2001:660:2402::2", (struct sockaddr*)&servers.list[1].addr);
-    servers.count=2;
+    servers.count = 2;
     rdnssd_write_registry();
     */
 
@@ -509,6 +507,8 @@ static int rdnssd_main(int argc, char** argv)
     pcap_loop(sock, -1, rdnssd_decode_frame, NULL);
 
     pcap_close(sock);
+
+    printf("Terminating program\n");
 
     return EXIT_SUCCESS;
 }
@@ -523,26 +523,25 @@ static int rdnssd_main(int argc, char** argv)
  */
 DWORD WINAPI ctrl_handler(DWORD Opcode, DWORD EventType, PVOID pEventData, PVOID pContext)
 {
-    switch (Opcode)
+    switch(Opcode)
     {
     case SERVICE_CONTROL_SHUTDOWN:
     case SERVICE_CONTROL_STOP:
         pcap_breakloop(sock);
         service_status.dwWin32ExitCode = ERROR_SUCCESS;
-        service_status.dwCurrentState  = SERVICE_STOPPED;
-        service_status.dwCheckPoint    = 1;
-        service_status.dwWaitHint      = 10000;
+        service_status.dwCurrentState = SERVICE_STOPPED;
+        service_status.dwCheckPoint= 1;
+        service_status.dwWaitHint = 10000;
         break;
     default:
         break;
     }
 
-    if (!SetServiceStatus(status, &service_status))
+    if(!SetServiceStatus(status, &service_status))
     {
         /* SvcDebugOut(TEXT("SetServiceStatus error - "), GetLastError()); */
     }
-
-    return ( ERROR_SUCCESS );
+    return ERROR_SUCCESS;
 }
 
 /**
@@ -552,19 +551,19 @@ DWORD WINAPI ctrl_handler(DWORD Opcode, DWORD EventType, PVOID pEventData, PVOID
  */
 VOID WINAPI rdnssd_service(int argc, char** argv)
 {
-    int error=0;
+    int error = 0;
 
-    service_status.dwControlsAccepted=SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
-    service_status.dwCurrentState=SERVICE_RUNNING;
-    service_status.dwServiceType=SERVICE_WIN32;
-    service_status.dwCheckPoint=0;
-    service_status.dwServiceSpecificExitCode=0;
-    service_status.dwWaitHint=0;
-    service_status.dwWin32ExitCode=0;
+    service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
+    service_status.dwCurrentState = SERVICE_RUNNING;
+    service_status.dwServiceType = SERVICE_WIN32;
+    service_status.dwCheckPoint = 0;
+    service_status.dwServiceSpecificExitCode = 0;
+    service_status.dwWaitHint = 0;
+    service_status.dwWin32ExitCode = 0;
 
-    status=RegisterServiceCtrlHandlerEx(TEXT("rdnssd"), ctrl_handler, NULL);
+    status = RegisterServiceCtrlHandlerEx(TEXT("rdnssd"), ctrl_handler, NULL);
 
-    if (!status)
+    if(!status)
     {
         printf("RegisterServiceCtrlHandlerEx\n");
         return;
@@ -572,7 +571,7 @@ VOID WINAPI rdnssd_service(int argc, char** argv)
 
     SetServiceStatus(status, &service_status);
 
-    while (service_status.dwCurrentState==SERVICE_RUNNING)
+    while(service_status.dwCurrentState == SERVICE_RUNNING)
     {
         /* capture the packet */
         pcap_loop(sock, -1, rdnssd_decode_frame, NULL);
@@ -589,59 +588,60 @@ VOID WINAPI rdnssd_service(int argc, char** argv)
 int main(int argc, char** argv)
 {
     struct bpf_program bpf;
-    char* filter="icmp6";
-    char* dev=NULL;
-    char* ifnamedev=NULL;
+    char* filter = "icmp6";
+    char* dev = NULL;
+    char* ifnamedev = NULL;
     char error[PCAP_ERRBUF_SIZE];
 
     /* init list */
     memset(&servers, 0x00, sizeof(servers));
-    servers.count=0;
+    servers.count = 0;
 
-    if (argc<2)
+    if(argc < 2)
     {
-        pcap_if_t * devices=NULL;
-        pcap_if_t* ifdev=NULL;
+        pcap_if_t * devices = NULL;
+        pcap_if_t* ifdev = NULL;
 
-        printf("Usage : %s ifname [b]\n", argv[0]);
+        printf("Usage: %s ifname [b]\n", argv[0]);
 
-        if (pcap_findalldevs_ex(PCAP_SRC_IF_STRING, NULL, &devices, error)==-1)
+        if(pcap_findalldevs_ex(PCAP_SRC_IF_STRING, NULL, &devices, error) == -1)
         {
-            printf("Error : %s\n", error);
+            printf("Error: %s\n", error);
             exit(EXIT_FAILURE);
         }
 
-        printf("Available ifname : \n");
-        for (ifdev=devices;ifdev;ifdev=ifdev->next)
+        printf("Available ifname: \n");
+        for(ifdev = devices ; ifdev ; ifdev = ifdev->next)
         {
-            printf("- ifname : %s\n\t(%s)\n", ifdev->name, ifdev->description);
+            printf("- ifname: %s\n\t(%s)\n", ifdev->name, ifdev->description);
         }
         pcap_freealldevs(devices);
         exit(EXIT_FAILURE);
     }
-    dev=argv[1];
 
-    if (!strchr(dev, '{'))
+    dev = argv[1];
+
+    if(!strchr(dev, '{'))
     {
         printf("Error bad interface name\n");
         exit(EXIT_FAILURE);
     }
 
     /* copy the interface name (to retrieve it when we will write to the registry) */
-    strncpy(ifname, strchr(dev, '{'), MAX_PATH-1);
-    ifname[MAX_PATH-1]=0x00;
+    strncpy(ifname, strchr(dev, '{'), MAX_PATH - 1);
+    ifname[MAX_PATH - 1] = 0x00;
 
     printf("Listening on %s\n", ifname);
-    sock=pcap_open(dev, PACKET_CAPTURE_LEN, 0, PACKET_TIMEOUT, NULL, error);
+    sock = pcap_open(dev, PACKET_CAPTURE_LEN, 0, PACKET_TIMEOUT, NULL, error);
 
-    if (!sock)
+    if(!sock)
     {
         printf("%s\n", error);
         exit(EXIT_FAILURE);
     }
 
     /* compile filter */
-    if (pcap_compile(sock, &bpf, filter, 0, 0)==-1)
+    if(pcap_compile(sock, &bpf, filter, 0, 0) == -1)
     {
         printf("Error pcap_compile\n");
         pcap_close(sock);
@@ -649,7 +649,7 @@ int main(int argc, char** argv)
     }
 
     /* set filter */
-    if (pcap_setfilter(sock, &bpf)==-1)
+    if(pcap_setfilter(sock, &bpf) == -1)
     {
         printf("Error pcap_setfilter\n");
         pcap_freecode(&bpf);
@@ -659,20 +659,20 @@ int main(int argc, char** argv)
 
     pcap_freecode(&bpf);
 
-    if (argv[2] && argv[2][0]=='b') /* background (service) */
+    if(argv[2] && argv[2][0]=='b') /* run in background (service) */
     {
         SERVICE_TABLE_ENTRY service_table[2];
 
-        service_table[0].lpServiceName=TEXT("rdnssd");
-        service_table[0].lpServiceProc=(LPSERVICE_MAIN_FUNCTION)rdnssd_service;
-        service_table[1].lpServiceName=NULL;
-        service_table[1].lpServiceProc=NULL;
+        service_table[0].lpServiceName = TEXT("rdnssd");
+        service_table[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)rdnssd_service;
+        service_table[1].lpServiceName = NULL;
+        service_table[1].lpServiceProc = NULL;
         StartServiceCtrlDispatcher(service_table);
     }
     else
     {
         rdnssd_main(argc, argv);
     }
-
     return EXIT_SUCCESS;
 }
+
