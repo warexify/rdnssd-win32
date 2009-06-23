@@ -45,9 +45,9 @@ typedef unsigned __int32 uint32_t;
  */
 typedef struct eth_hdr
 {
-    unsigned char dst_addr[6]; /**< destination address */
-    unsigned char src_addr[6]; /**< source address */
-    unsigned __int16 ether_type;  /**< Ethernet type of the payload */
+    unsigned char dst_addr[6]; /**< Destination address */
+    unsigned char src_addr[6]; /**< Source address */
+    unsigned __int16 ether_type; /**< Ethernet type of the payload */
 }eth_hdr;
 
 /**
@@ -56,14 +56,14 @@ typedef struct eth_hdr
  */
 typedef struct ipv6_hdr
 {
-    unsigned long   ipv6_vertcflow;        /**< 4 bit IPv6 version\n
-                                           8 bit traffic class\n
-                                           20 bit flow label */
-    unsigned short  ipv6_payloadlen;       /**< payload length */
-    unsigned char   ipv6_nexthdr;          /**< next header protocol value */
-    unsigned char   ipv6_hoplimit;         /**< TTL */
-    struct in6_addr ipv6_srcaddr;          /**< source address */
-    struct in6_addr ipv6_destaddr;         /**< destination address */
+    unsigned long ipv6_vertcflow; /**< 4 bit IPv6 version\n
+                                       8 bit traffic class\n
+                                       20 bit flow label */
+    unsigned short ipv6_payloadlen; /**< Payload length */
+    unsigned char ipv6_nexthdr; /**< Next header protocol value */
+    unsigned char ipv6_hoplimit; /**< TTL */
+    struct in6_addr ipv6_srcaddr; /**< Source address */
+    struct in6_addr ipv6_destaddr; /**< Destination address */
 }ipv6_hdr;
 
 /**
@@ -72,10 +72,10 @@ typedef struct ipv6_hdr
  */
 typedef struct ipv6_fragment_hdr
 {
-    unsigned char   ipv6_frag_nexthdr; /**< next header protocol value */
-    unsigned char   ipv6_frag_reserved; /**< reserved */
-    unsigned short  ipv6_frag_offset; /**< offset */
-    unsigned long   ipv6_frag_id; /**< Id of the fragment */
+    unsigned char ipv6_frag_nexthdr; /**< Next header protocol value */
+    unsigned char ipv6_frag_reserved; /**< Reserved */
+    unsigned short ipv6_frag_offset; /**< Offset */
+    unsigned long ipv6_frag_id; /**< Id of the fragment */
 }ipv6_fragment_hdr;
 
 /**
@@ -84,9 +84,9 @@ typedef struct ipv6_fragment_hdr
  */
 typedef struct icmpv6_hdr
 {
-    unsigned char   icmp6_type; /**< ICMPv6 type */
-    unsigned char   icmp6_code; /**< ICMPv6 code */
-    unsigned short  icmp6_checksum; /**< ICMPv6 checksum */
+    unsigned char icmp6_type; /**< ICMPv6 type */
+    unsigned char icmp6_code; /**< ICMPv6 code */
+    unsigned short icmp6_checksum; /**< ICMPv6 checksum */
 }icmpv6_hdr;
 
 /**
@@ -95,9 +95,9 @@ typedef struct icmpv6_hdr
  */
 struct nd_router_advert
 {
-    struct icmpv6_hdr      nd_ra_hdr; /**< ICMPv6 header */
-    uint32_t               nd_ra_reachable;        /**< reachable time */
-    uint32_t               nd_ra_retransmit;       /**< retransmit timer */
+    struct icmpv6_hdr nd_ra_hdr; /**< ICMPv6 header */
+    uint32_t nd_ra_reachable; /**< Reachable time */
+    uint32_t nd_ra_retransmit; /**< Retransmit timer */
     /* could be followed by options */
 }nd_router_advert;
 
@@ -107,8 +107,8 @@ struct nd_router_advert
  */
 typedef struct nd_opt_hdr
 {
-    uint8_t            nd_opt_type; /**< ICMPv6 option type */
-    uint8_t            nd_opt_len; /**< length of the option (multiple of 8 bytes) */
+    uint8_t nd_opt_type; /**< ICMPv6 option type */
+    uint8_t nd_opt_len; /**< Length of the option (multiple of 8 bytes) */
 }nd_opt_hdr;
 
 /**
@@ -118,9 +118,9 @@ typedef struct nd_opt_hdr
 struct nd_opt_rdnss
 {
     uint8_t nd_opt_rdnss_type; /**< ICMPv6 RDNSS option type = 25 */
-    uint8_t nd_opt_rdnss_len; /**< length of the option (multiple of 8 bytes) */
-    uint16_t nd_opt_rdnss_resserved1; /**< reserved value */
-    uint32_t nd_opt_rdnss_lifetime; /**< lifetime of the entry */
+    uint8_t nd_opt_rdnss_len; /**< Length of the option (multiple of 8 bytes) */
+    uint16_t nd_opt_rdnss_resserved1; /**< Reserved value */
+    uint32_t nd_opt_rdnss_lifetime; /**< Lifetime of the entry */
     /* followed by one or more IPv6 addresses */
 }nd_opt_rdnss;
 
@@ -153,4 +153,5 @@ int packet_decode_ipv6(const u_char* packet, size_t len);
  */
 int packet_decode_icmpv6(const u_char* packet, size_t len);
 
-#endif /* IP6HDR_H */
+#endif /* PACKET_H */
+
