@@ -1,0 +1,8 @@
+2009-12-10  Sebastien Vincent <sebastien.vincent@cppextrem.com>
+
+  * Version 0.2   : - Code cleanup;
+                    - Windows x64 support.
+
+2008-11-07 Sebastien Vincent <sebastien.vincent@cppextrem.com>
+	
+  * Initial version
