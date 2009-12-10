@@ -1,6 +1,6 @@
 /*
     This file is part of rdnssd_win32.
-    Copyright (C) 2008 Sebastien Vincent <sebastien.vincent@cppextrem.com>
+    Copyright (C) 2008-2009 Sebastien Vincent <sebastien.vincent@cppextrem.com>
 
     rdnssd_win32 is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
