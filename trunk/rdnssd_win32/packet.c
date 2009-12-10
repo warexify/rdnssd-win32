@@ -94,4 +94,3 @@ int packet_decode_icmpv6(const u_char* packet, size_t len)
     }
     return 0;
 }
-
