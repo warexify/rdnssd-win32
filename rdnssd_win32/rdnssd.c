@@ -162,6 +162,8 @@ static inline int gettimeofday(struct timeval* p, void* tz /* IGNORED */)
         FILETIME ft;
     } now;
 
+    tz = tz; /* not used */
+
     GetSystemTimeAsFileTime(&(now.ft));
     p->tv_usec = (long)((now.ns100 / 10LL) % 1000000LL);
     p->tv_sec = (long)((now.ns100 - (116444736000000000LL)) / 10000000LL);
@@ -178,6 +180,8 @@ static inline int gettimeofday(struct timeval* p, void* tz /* IGNORED */)
 static int clock_gettime(clockid_t clk_id, struct timespec *tp)
 {
     struct timeval tv;
+
+    clk_id = clk_id; /* not used */
 
     if(gettimeofday(&tv, NULL)==-1)
     {
@@ -196,10 +200,10 @@ static void rdnssd_write_registry(void)
 {
     HKEY key;
     char registry_key[sizeof(KEY_STR) + 64];
-    unsigned char old[1024];
-    unsigned char str[INET6_ADDRSTRLEN];
-    unsigned char buf[1024];
-    unsigned char* buf2 = NULL;
+    char old[1024];
+    char str[INET6_ADDRSTRLEN];
+    char buf[1024];
+    char* buf2 = NULL;
     DWORD bufsize = 0;
     struct rdnss_t* rd = NULL;
     size_t i = 0;
@@ -227,7 +231,7 @@ static void rdnssd_write_registry(void)
     }
 
     bufsize = sizeof(buf);
-    RegQueryValueExA(key, "NameServer", NULL, NULL, buf, &bufsize);
+    RegQueryValueExA(key, "NameServer", NULL, NULL, (unsigned char*)buf, &bufsize);
 
     /* in case it failed, buf is zeroed string */
     printf("Old value is %s\n", buf);
@@ -250,6 +254,7 @@ static void rdnssd_write_registry(void)
         bufsize -= (int)strlen(str);
         strncpy(buf2, str, strlen(str));
         buf2 += (int)strlen(str);
+
         if(bufsize > 1)
         {
             *buf2 = ' ';
@@ -271,7 +276,7 @@ static void rdnssd_write_registry(void)
     }
 
     /* write the value */
-    if(RegSetValueExA(key, "NameServer", 0, REG_SZ, buf, bufsize) != ERROR_SUCCESS)
+    if(RegSetValueExA(key, "NameServer", 0, REG_SZ, (unsigned char*)buf, bufsize) != ERROR_SUCCESS)
     {
         RegCloseKey(key);
         return;
@@ -354,14 +359,14 @@ static void rdnssd_update(struct in6_addr* addr, unsigned int ifindex, time_t ex
     qsort(servers.list, servers.count, sizeof(rdnss_t), rdnssd_is_older);
     /*
     #ifndef NDEBUG
-    	for(unsigned i = 0; i < servers.count; i++)
-    	{
-    		char buf[INET6_ADDRSTRLEN];
-    		inet_ntop(AF_INET6, &servers.list[i].addr, buf,
-    		           sizeof(buf));
-    		syslog(LOG_DEBUG, "%u: %48s expires at %u\n", i, buf,
-    		        (unsigned)servers.list[i].expiry);
-    	}
+        for(unsigned i = 0; i < servers.count; i++)
+        {
+            char buf[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, &servers.list[i].addr, buf,
+                       sizeof(buf));
+            syslog(LOG_DEBUG, "%u: %48s expires at %u\n", i, buf,
+                    (unsigned)servers.list[i].expiry);
+        }
     #endif
     */
 }
@@ -426,10 +431,6 @@ int rdnssd_parse_nd_opts(const struct nd_opt_hdr *opt, size_t opts_len, unsigned
  */
 static int rdnssd_decode_frame(u_char* args, const struct pcap_pkthdr* header, const u_char* packet)
 {
-    struct eth_hdr* hdr = (struct eth_hdr*)packet;
-    struct ipv6_hdr* hdr_ip6 = NULL;
-    struct icmpv6_hdr* hdr_icmp6 = NULL;
-
     args = NULL; /* not used */
 
     if(packet_decode_ethernet(packet, header->len) == 1)
@@ -446,7 +447,7 @@ static int rdnssd_decode_frame(u_char* args, const struct pcap_pkthdr* header, c
  * \brief Function executed when the program receive a signal.
  * \param code code of the signal
  */
-static void signal_routine(int code)
+static void __cdecl signal_routine(int code)
 {
     switch(code)
     {
@@ -475,7 +476,17 @@ static void signal_routine(int code)
  */
 static int rdnssd_main(int argc, char** argv)
 {
+    /* avoid compilation warnings */
+    argc = argc;
+    argv = argv;
+
     /* signals handling */
+
+    /* On Windows x64, it is normal that the following
+     * lines throw warnings (if compiled with /W4).
+     * The reason is that SIG_ERR cast -1 to function pointer (8 bytes)
+     * and -1 is interpreted as a 'int' (4 bytes on x64).
+     */
     if(signal(SIGTERM, signal_routine) == SIG_ERR)
     {
         printf("SIGTERM not handled\n");
@@ -523,6 +534,11 @@ static int rdnssd_main(int argc, char** argv)
  */
 DWORD WINAPI ctrl_handler(DWORD Opcode, DWORD EventType, PVOID pEventData, PVOID pContext)
 {
+    /* avoid compilation warnings */
+    pContext = pContext;
+    pEventData = pEventData;
+    EventType = EventType;
+
     switch(Opcode)
     {
     case SERVICE_CONTROL_SHUTDOWN:
@@ -551,7 +567,9 @@ DWORD WINAPI ctrl_handler(DWORD Opcode, DWORD EventType, PVOID pEventData, PVOID
  */
 VOID WINAPI rdnssd_service(int argc, char** argv)
 {
-    int error = 0;
+    /* avoid compilation warnings */
+    argc = argc;
+    argv = argv;
 
     service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
     service_status.dwCurrentState = SERVICE_RUNNING;
@@ -590,7 +608,6 @@ int main(int argc, char** argv)
     struct bpf_program bpf;
     char* filter = "icmp6";
     char* dev = NULL;
-    char* ifnamedev = NULL;
     char error[PCAP_ERRBUF_SIZE];
 
     /* init list */
@@ -675,4 +692,3 @@ int main(int argc, char** argv)
     }
     return EXIT_SUCCESS;
 }
-
