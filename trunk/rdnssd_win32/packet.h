@@ -59,7 +59,7 @@ typedef struct eth_hdr
 typedef struct ipv6_hdr
 {
     unsigned long ipv6_vertcflow; /**< 4 bit IPv6 version\n
-                                       8 bit traffic class\n
+                                       8 bit traffic prioriy\n
                                        20 bit flow label */
     unsigned short ipv6_payloadlen; /**< Payload length */
     unsigned char ipv6_nexthdr; /**< Next header protocol value */
