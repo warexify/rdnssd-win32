@@ -350,26 +350,13 @@ static void rdnssd_update(struct in6_addr* addr, unsigned int ifindex, time_t ex
             if((expiry - servers.list[MAX_RDNSS - 1].expiry) >= 0)
                 i = MAX_RDNSS - 1;
         }
-
-      memcpy(&servers.list[i].addr, addr, sizeof(*addr));
-      servers.list[i].ifindex = ifindex;
-      servers.list[i].expiry = expiry;
-
-      qsort(servers.list, servers.count, sizeof(rdnss_t), rdnssd_is_older);
     }
 
-    /*
-    #ifndef NDEBUG
-        for(unsigned i = 0; i < servers.count; i++)
-        {
-            char buf[INET6_ADDRSTRLEN];
-            inet_ntop(AF_INET6, &servers.list[i].addr, buf,
-                       sizeof(buf));
-            syslog(LOG_DEBUG, "%u: %48s expires at %u\n", i, buf,
-                    (unsigned)servers.list[i].expiry);
-        }
-    #endif
-    */
+    memcpy(&servers.list[i].addr, addr, sizeof(*addr));
+    servers.list[i].ifindex = ifindex;
+    servers.list[i].expiry = expiry;
+
+    qsort(servers.list, servers.count, sizeof(rdnss_t), rdnssd_is_older);
 }
 
 /**
