@@ -140,15 +140,8 @@ static void rdnssd_write_registry(struct socket_desc* sock)
     char str[INET6_ADDRSTRLEN];
     char buf[1024];
     char* buf2 = NULL;
-    DWORD bufsize = 0;
-
+    DWORD bufsize = sizeof(buf);
     size_t i = 0;
-
-    if(!sock->servers.count)
-    {
-		fprintf(stdout, "no servers to write\n");
-        return;
-    }
 
 	/* forge the key entry */
 	memset(registry_key, 0x00, sizeof(registry_key));
@@ -170,14 +163,11 @@ static void rdnssd_write_registry(struct socket_desc* sock)
 		}
 	}
 
-	bufsize = sizeof(buf);
-	RegQueryValueExA(key, "NameServer", NULL, NULL, (unsigned char*)buf,
+	RegQueryValueExA(key, "NameServer", NULL, NULL, (unsigned char*)old,
 		&bufsize);
 
 	/* in case it failed, buf is zeroed string */
-	fprintf(stdout, "Current registry value is %s\n", buf);
-
-	memcpy(old, buf, sizeof(buf));
+	fprintf(stdout, "Current registry value is %s\n", old);
 
 	buf2 = buf;	
 	bufsize = sizeof(buf);
@@ -223,6 +213,14 @@ static void rdnssd_write_registry(struct socket_desc* sock)
     }   
 	
 	buf[sizeof(buf) - 1] = 0x00;
+
+
+	if (!sock->servers.count)
+	{
+		fprintf(stdout, "No servers in the list\n");
+		buf[0] = '\0';
+		bufsize = 1;
+	}
 
 	fprintf(stdout, "Old=%s New=%s\n", old, buf);
 	if (!strncmp(buf, old, bufsize))
@@ -295,12 +293,14 @@ static int rdnssd_is_older(const void *a, const void *b)
  * \param addr IPv6 address of the name server
  * \param ifindex interface index on which we receive the RA
  * \param expiry lifetime of the entry
+ * \return 1 if an entry has been added, 0 otherwise (refresh existing peer)
  * \author Pierre Ynard
  */
-static void rdnssd_update(struct socket_desc* sock, struct in6_addr* addr,
+static int rdnssd_update(struct socket_desc* sock, struct in6_addr* addr,
 	unsigned int ifindex, time_t expiry)
 {
     size_t i = 0;
+	int ret = 0;
 
     /* Does this entry already exist? */
     for(i = 0 ; i < sock->servers.count ; i++)
@@ -329,15 +329,24 @@ static void rdnssd_update(struct socket_desc* sock, struct in6_addr* addr,
                 i = MAX_RDNSS - 1;
 			}
         }
+		ret = 1;
     }
 
     memcpy(&sock->servers.list[i].addr, addr, sizeof(struct in6_addr));
     sock->servers.list[i].ifindex = ifindex;
     sock->servers.list[i].expiry = expiry;
 
+	/* force update in case of expired entry */
+	if (expiry == 0)
+	{
+		ret = 1;
+	}
+
     qsort(sock->servers.list, sock->servers.count, sizeof(rdnss_t),
 		rdnssd_is_older);
 	fprintf(stdout, "Update done\n");
+
+	return ret;
 }
 
 /**
@@ -346,7 +355,7 @@ static void rdnssd_update(struct socket_desc* sock, struct in6_addr* addr,
  * \param opt pointer on the options
  * \param opts_len length of the options
  * \param ifindex interface index
- * \return 0 if success, -1 otherwise
+ * \return 1 if registry update has to be performed, 0 if not, -1 if error
  * \author Pierre Ynard
  * \author Sebastien Vincent
  */
@@ -354,8 +363,10 @@ int rdnssd_parse_nd_opts(struct socket_desc* sock,
 	const struct nd_opt_hdr *opt, size_t opts_len, unsigned int ifindex)
 {
     struct in6_addr *addr = NULL;
-
+	int ret = 0;
+	
 	fprintf(stdout, "rdnssd parse\n");
+
     for( ; opts_len >= sizeof(struct nd_opt_hdr) ; opts_len -= opt->nd_opt_len << 3,
             opt = (const struct nd_opt_hdr*)((const uint8_t*) opt + (opt->nd_opt_len << 3)))
     {
@@ -367,6 +378,10 @@ int rdnssd_parse_nd_opts(struct socket_desc* sock,
 
         if(nd_opt_len == 0 || opts_len < (nd_opt_len << 3))
         {
+			if (ret)
+			{
+				return 1;
+			}
 			return -1;
 		}
 
@@ -393,11 +408,12 @@ int rdnssd_parse_nd_opts(struct socket_desc* sock,
         for(addr = (struct in6_addr*)(rdnss_opt + 1) ; nd_opt_len >= 2 ; 
 			addr++, nd_opt_len -= 2)
         {
-			rdnssd_update(sock, addr, ifindex, (lifetime > now) ? lifetime : 0);
+			ret += rdnssd_update(sock, addr, ifindex, (lifetime > now) ? lifetime : 0);
         }
-    }
+		fprintf(stdout, "ret = %d\n", ret);
+	}
 
-    return 0;
+	return ret > 0;
 }
 
 /**
@@ -408,9 +424,9 @@ int rdnssd_parse_nd_opts(struct socket_desc* sock,
  */
 static int rdnssd_decode_frame(struct socket_desc* sock, const WSABUF* wsa_buf)
 {
+	/* if returns 1, the packet is a RA and DNS information has been updated */
 	if(packet_decode_icmpv6(sock, wsa_buf->buf, wsa_buf->len) == 1)
     {
-        /* if returns 1, the packet is a RA */
         rdnssd_trim_expired(sock);
         /* write to the registry */
         rdnssd_write_registry(sock);
