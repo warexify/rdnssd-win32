@@ -12,7 +12,7 @@ Compilation
 ------------
 
 To compile rdnssd_win32 you need:
-- Visual Studio 2013.
+- Visual Studio 2015.
 
 Now open rdnssd_win32.sln
 Go to project => Properties, select "Configuration properties" and be sure that platform is right for you (win32 or x64).
