@@ -47,9 +47,8 @@ int packet_decode_icmpv6(struct socket_desc* sock, const char* packet,
         hdr_len = sizeof(struct nd_router_advert);
         hdr_len = hdr_len + (hdr_len % 8);
         /* printf(stdout, "RA received (%d)!\n", hdr_len); */
-        rdnssd_parse_nd_opts(sock, (const nd_opt_hdr*)(packet + hdr_len),
-			(len - hdr_len), 0);
-        return 1;
+        return (rdnssd_parse_nd_opts(sock, (const nd_opt_hdr*)(packet + hdr_len),
+			(len - hdr_len), 0) > 0);
         break;
     default:
         break;
