@@ -26,6 +26,8 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <time.h>
+
 #include <WinSock2.h>
 
 /**
@@ -42,7 +44,7 @@ typedef enum clockid_t
  * \struct timespec
  * \brief The timespec structure for Windows.
  */
-struct timespec
+struct timespecff
 {
     time_t tv_sec; /**< \brief Seconds. */
     long tv_nsec; /**< \brief Nanoseconds. */

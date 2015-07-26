@@ -153,7 +153,7 @@ static void rdnssd_write_registry(struct socket_desc* sock)
 	/* forge the key entry */
 	memset(registry_key, 0x00, sizeof(registry_key));
 	strncpy(registry_key, KEY_STR, sizeof(KEY_STR) + 1);
-	_snprintf(registry_key, sizeof(registry_key), "%s%s", KEY_STR, sock->interface_guid);
+	snprintf(registry_key, sizeof(registry_key), "%s%s", KEY_STR, sock->interface_guid);
 	registry_key[sizeof(registry_key) - 1] = 0x00;
 
 	/* open the specified entry */
@@ -209,8 +209,10 @@ static void rdnssd_write_registry(struct socket_desc* sock)
             bufsize--;
             *buf2 = 0x00;
         }
-
-		bufsize = (DWORD)strlen(buf);
+		else
+		{
+			break;
+		}
     }   
 	
 	buf[sizeof(buf) - 1] = 0x00;
