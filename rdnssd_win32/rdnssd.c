@@ -189,13 +189,19 @@ static void rdnssd_write_registry(struct socket_desc* sock)
 
         inet_ntop(AF_INET6, &rd->addr, str, INET6_ADDRSTRLEN);
 		str_len = (DWORD)strlen(str);
+		
+		if (rd->expiry == 0)
+		{
+			fprintf(stdout, "Expired entry: %s", str);
+			continue;
+		}
 
 		fprintf(stdout, "New entry: %s\n", str);
 
         if((str_len + 1) > bufsize)
         {
 			fprintf(stderr, "Bufsize too small\n");
-            continue;
+			break;
         }
 
         bufsize -= str_len;
@@ -209,8 +215,9 @@ static void rdnssd_write_registry(struct socket_desc* sock)
             bufsize--;
             *buf2 = 0x00;
         }
-		else
+		else /* bufsize == 1 */
 		{
+			*buf2 = 0x00;
 			break;
 		}
     }   
@@ -381,15 +388,12 @@ int rdnssd_parse_nd_opts(struct socket_desc* sock,
         clock_gettime(CLOCK_MONOTONIC, &ts);
 		now = ts.tv_sec;    
 
-        lifetime = (uint32_t)now + ntohl(rdnss_opt->nd_opt_rdnss_lifetime);
+        lifetime = (uint32_t)(now + ntohl(rdnss_opt->nd_opt_rdnss_lifetime));
 
         for(addr = (struct in6_addr*)(rdnss_opt + 1) ; nd_opt_len >= 2 ; 
 			addr++, nd_opt_len -= 2)
         {
-			if(lifetime > now)
-			{
-				rdnssd_update(sock, addr, ifindex, lifetime);
-			}
+			rdnssd_update(sock, addr, ifindex, (lifetime > now) ? lifetime : 0);
         }
     }
 
