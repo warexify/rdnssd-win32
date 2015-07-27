@@ -14,9 +14,10 @@ Compilation
 To compile rdnssd_win32 you need:
 - Visual Studio 2015.
 
-Now open rdnssd_win32.sln
-Go to project => Properties, select "Configuration properties" and be sure that platform is right for you (win32 or x64).
-Compile (F7).
+Open rdnssd_win32.sln.
+Go to project => Properties, select "Configuration properties" and be sure that
+platform is right for you (win32 or x64).
+Build the solution.
 
 Configuration
 --------------
@@ -28,7 +29,7 @@ An optional parameter "-b" is used for the service mode, see next section.
 Installation
 -------------
 
-On the target, you have to install the Microsoft Visual C++ 2013 Redistributable
+On the target, you have to install the Microsoft Visual C++ 2015 Redistributable
 Package.
 
 Install as service:
@@ -41,8 +42,8 @@ sc delete rdnssd
 Limitations
 ------------
 
-- rdnssd_win32 works only on Microsoft Windows Vista/7/8 as well as Windows
-server 2003 and 2008.
+rdnssd_win32 works only on Microsoft Windows >= Vista as well as Windows
+server >= 2003.
 
 On older versions such as Windows XP, IPv6 nameservers are written at the good
 place but could not be used because they do not provide a DNS resolver with
