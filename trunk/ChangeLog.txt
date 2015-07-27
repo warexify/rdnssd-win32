@@ -1,3 +1,8 @@
+2015-07-27  Sebastien Vincent <sebastien.vincent@cppextrem.com>
+
+  * Version 1.1   : - Fixes bug when writting DNS servers in registry;
+                    - Removes DNS servers when lifetime is expired.
+
 2014-07-27  Sebastien Vincent <sebastien.vincent@cppextrem.com>
 
   * Version 1.0   : - Replace winpcap by raw IPv6 socket.
@@ -8,6 +13,6 @@
                     - Windows x64 support.
 
 2008-11-07 Sebastien Vincent <sebastien.vincent@cppextrem.com>
-	
+
   * Initial version.
 
