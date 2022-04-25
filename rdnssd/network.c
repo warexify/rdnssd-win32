@@ -153,7 +153,8 @@ void network_print_adapters_addresses(void)
 	for(p = adapters ; p ; p = p->Next)
 	{
 		PIP_ADAPTER_UNICAST_ADDRESS p2 = NULL;
-		char buf[64];
+        /* Avoid https ://docs.microsoft.com/en-us/cpp/code-quality/c6386 */
+		char buf[65];
 
 		fprintf(stdout, "----------\n");
 		fprintf(stdout, "Adapter: %s (%ls)\n", p->AdapterName,

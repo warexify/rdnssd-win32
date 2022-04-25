@@ -366,9 +366,11 @@ int rdnssd_parse_nd_opts(struct socket_desc* sock,
 	int ret = 0;
 	
 	fprintf(stdout, "rdnssd parse\n");
-
+    /*
+    * TODO: avoid https://docs.microsoft.com/en-us/cpp/ide/lnt-arithmetic-overflow
+    */
     for( ; opts_len >= sizeof(struct nd_opt_hdr) ; opts_len -= opt->nd_opt_len << 3,
-            opt = (const struct nd_opt_hdr*)((const uint8_t*) opt + (opt->nd_opt_len << 3)))
+            opt = (const struct nd_opt_hdr*)((const uint8_t*)opt + (opt->nd_opt_len << 3)))
     {
         struct nd_opt_rdnss *rdnss_opt = NULL;
         size_t nd_opt_len = opt->nd_opt_len;
@@ -465,7 +467,7 @@ static int rdnssd_main()
 {
 	struct list_head* n = NULL;
 	struct list_head* get = NULL;
-	struct fd_set fdsr;
+    struct fd_set fdsr;
 	int nsock = 0;
 	struct timeval tv = {1, 0}; /* one second timeout */
 	int ret = -1;
