@@ -33,7 +33,7 @@ extern int rdnssd_parse_nd_opts(struct socket_desc* sock,
 int packet_decode_icmpv6(struct socket_desc* sock, const char* packet,
 	size_t len)
 {
-    struct icmpv6_hdr* hdr = (struct icmpv6_hdr*)packet;
+    struct icmpv6_hdr const* hdr = (struct icmpv6_hdr*)packet;
     size_t hdr_len = 0;
 
     if(len < sizeof(struct icmpv6_hdr))
@@ -41,17 +41,14 @@ int packet_decode_icmpv6(struct socket_desc* sock, const char* packet,
         return -1;
     }
 
-    switch(hdr->icmp6_type)
+        /* RA */
+    if (hdr->icmp6_type == 134)
     {
-    case 134: /* RA */
         hdr_len = sizeof(struct nd_router_advert);
         hdr_len = hdr_len + (hdr_len % 8);
         /* printf(stdout, "RA received (%d)!\n", hdr_len); */
         return (rdnssd_parse_nd_opts(sock, (const nd_opt_hdr*)(packet + hdr_len),
-			(len - hdr_len), 0) > 0);
-        break;
-    default:
-        break;
+            (len - hdr_len), 0) > 0);
     }
     return 0;
 }
