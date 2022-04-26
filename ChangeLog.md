@@ -1,5 +1,8 @@
 Rdnssd Changelog
 ================
+#### v1.2
+- Attempt at some security fixes
+- Provide PowerShell script
 
 #### v1.1
 - Fixes bug when writting DNS servers in registry
