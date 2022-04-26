@@ -149,18 +149,15 @@ static void rdnssd_write_registry(struct socket_desc* sock)
 	snprintf(registry_key, sizeof(registry_key), "%s%s", KEY_STR, sock->interface_guid);
 	registry_key[sizeof(registry_key) - 1] = 0x00;
 
-	/* open the specified entry */
-	if(RegOpenKeyExA(HKEY_LOCAL_MACHINE, registry_key, 0, 
-		KEY_READ | KEY_WRITE, &key) != ERROR_SUCCESS)
+	/* open the specified entry & create the key entry if not exists */
+    if((RegOpenKeyExA(HKEY_LOCAL_MACHINE, registry_key, 0, 
+		KEY_READ | KEY_WRITE, &key) != ERROR_SUCCESS) &&
+        (RegCreateKeyExA(HKEY_LOCAL_MACHINE, registry_key, 0, NULL,
+            REG_OPTION_NON_VOLATILE, KEY_WRITE | KEY_READ, NULL, &key,
+            &bufsize)))
 	{
-		/* create the key entry if not exists */
-		if(RegCreateKeyExA(HKEY_LOCAL_MACHINE, registry_key, 0, NULL, 
-			REG_OPTION_NON_VOLATILE, KEY_WRITE | KEY_READ, NULL, &key,
-			&bufsize))
-		{
 			fprintf(stderr, "Error RegCreateKeyExA: cannot create key\n");
 			return;
-		}
 	}
 
 	RegQueryValueExA(key, "NameServer", NULL, NULL, (unsigned char*)old,
@@ -174,7 +171,7 @@ static void rdnssd_write_registry(struct socket_desc* sock)
 
     for(i = 0 ; i < sock->servers.count ; i++)
     {
-		struct rdnss_t* rd = &sock->servers.list[i];
+		struct rdnss_t const* rd = &sock->servers.list[i];
 		DWORD str_len = 0;
 
         inet_ntop(AF_INET6, &rd->addr, str, INET6_ADDRSTRLEN);
@@ -366,9 +363,7 @@ int rdnssd_parse_nd_opts(struct socket_desc* sock,
 	int ret = 0;
 	
 	fprintf(stdout, "rdnssd parse\n");
-    /*
-    * TODO: avoid https://docs.microsoft.com/en-us/cpp/ide/lnt-arithmetic-overflow
-    */
+    /* TODO: avoid https://docs.microsoft.com/en-us/cpp/ide/lnt-arithmetic-overflow */
     for( ; opts_len >= sizeof(struct nd_opt_hdr) ; opts_len -= opt->nd_opt_len << 3,
             opt = (const struct nd_opt_hdr*)((const uint8_t*)opt + (opt->nd_opt_len << 3)))
     {
@@ -453,7 +448,6 @@ static void __cdecl signal_routine(int code)
     case SIGSEGV:
         fprintf(stderr, "Receive SIGSEGV: oups, exiting now\n");
         _exit(EXIT_FAILURE); /* we just exit the program without cleanup */
-        break;
     default:
         break;
     }
@@ -483,7 +477,7 @@ static int rdnssd_main()
 	list_iterate_safe(get, n, &g_rdnssd.sockets)
 	{
 		/* add socket descriptors for select() */
-		struct socket_desc* tmp = list_get(get, struct socket_desc, list);
+		struct socket_desc const* tmp = list_get(get, struct socket_desc, list);
 		FD_SET(tmp->sock, &fdsr);
 		/* nsock = tmp->sock > nsock ? tmp->sock : nsock; */
 	}
@@ -507,7 +501,7 @@ static int rdnssd_main()
 				if(WSARecvFrom(tmp->sock, &wsa_buf, 1, &bytes_ret, 
 					&flags, (struct sockaddr*)&from, &from_len, NULL, NULL) != SOCKET_ERROR)
 				{
-					struct sockaddr_in6* addrv6 = (struct sockaddr_in6*)&from;
+					struct sockaddr_in6 const* addrv6 = (struct sockaddr_in6*)&from;
 					if(!memcmp(&tmp->addr, &addrv6->sin6_addr, sizeof(struct in6_addr)))
 					{
 						/* do not read and process packet coming from us */
@@ -526,7 +520,7 @@ static int rdnssd_main()
 	}
 	else if(ret == -1)
 	{
-		fprintf(stderr, "Error select() (%d)\n", GetLastError());
+		fprintf(stderr, "Error select() (%lu)\n", GetLastError());
 		return -1;
 	}
 
@@ -584,7 +578,7 @@ static int rdnssd_init(void)
 
 	network_init();
 
-	INIT_LIST(g_rdnssd.sockets);
+	INIT_LIST(g_rdnssd.sockets)
 
 	/* get all network interfaces and bind a socket to its
 	 * IPv6 link-local address
@@ -616,6 +610,7 @@ static int rdnssd_init(void)
 			}
 		}
 
+        /* TODO: fix https://rules.sonarsource.com/c/RSPEC-836 */
 		if(addr)
 		{
 			SOCKET sock = WSASocket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6, NULL, 0,
@@ -625,13 +620,13 @@ static int rdnssd_init(void)
 
 			if(sock == INVALID_SOCKET)
 			{
-				fprintf(stderr, "Error socket: %d\n", GetLastError());
+				fprintf(stderr, "Error socket: %lu\n", GetLastError());
 				continue;
 			}
 
 			if(bind(sock, addr, sizeof(struct sockaddr_in6)) != 0)
 			{
-				fprintf(stderr, "Error bind: %d\n", GetLastError());
+				fprintf(stderr, "Error bind: %lu\n", GetLastError());
 				closesocket(sock);
 				continue;
 			}
@@ -641,7 +636,7 @@ static int rdnssd_init(void)
 			if(WSAIoctl(sock, SIO_RCVALL, &on, sizeof(unsigned long), NULL, 0,
 				&bytes_ret, NULL, NULL) == SOCKET_ERROR)
 			{
-				fprintf(stderr, "Error WSAIoctl: %d\n", GetLastError());
+				fprintf(stderr, "Error WSAIoctl: %lu\n", GetLastError());
 				closesocket(sock);
 				continue;
 			}
@@ -658,12 +653,12 @@ static int rdnssd_init(void)
 			memcpy(&desc->addr, addr, sizeof(struct sockaddr_in6));
 			strncpy(desc->interface_guid, p->AdapterName, sizeof(desc->interface_guid));
 			desc->interface_guid[sizeof(desc->interface_guid) - 1] = 0x00;
-			INIT_LIST(desc->list);
+			INIT_LIST(desc->list)
 			memset(&desc->servers, 0x00, sizeof(struct rdnss_servers));
 			desc->servers.count = 0;
 			
 			fprintf(stdout, "Add socket to list: %s\n", desc->interface_guid);
-			LIST_ADD(&desc->list, &g_rdnssd.sockets);
+			LIST_ADD(&desc->list, &g_rdnssd.sockets)
 		}
 	}
 
@@ -684,7 +679,7 @@ static void rdnssd_cleanup(void)
 	list_iterate_safe(get, n, &g_rdnssd.sockets)
 	{
 		struct socket_desc* tmp = list_get(get, struct socket_desc, list);
-		LIST_DEL(&tmp->list);
+		LIST_DEL(&tmp->list)
 		closesocket(tmp->sock);
 		free(tmp);
 	}
